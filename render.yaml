@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: hotbite-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CLIENT_URL
+        value: https://hotbite-reborn.vercel.app # Update this with your frontend URL later
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        sync: false # You must set this manually in the Render dashboard (MongoDB Atlas URI)
