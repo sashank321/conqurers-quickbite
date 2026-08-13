@@ -50,6 +50,8 @@ import {
 } from "@/lib/api";
 
 // Real hero food images
+import GlassSurface from "@/components/GlassSurface";
+import TextLoop from "@/components/TextLoop";
 import heroPizza from "@/assets/hero-pizza.avif";
 import heroBurger from "@/assets/hero-burger2.avif";
 import heroHotdog from "@/assets/hero-hotdog.avif";
@@ -102,26 +104,45 @@ const LETTER_COLORS = [
   "#FF8C42", "#FFD166", "#FF6B6B", "#F5A623", "#FFBE0B",
 ];
 
-function ColoredText({ text }: { text: string }) {
+function ColoredText({ text }: { text?: string }) {
+  if (!text || typeof text !== "string") return null;
+  const safeText = text;
+
   return (
-    <>
-      {text.split("").map((char, i) =>
-        char === " " ? (
-          <span key={i}>&nbsp;</span>
-        ) : (
+    <span className="inline-flex flex-wrap justify-center">
+      {safeText.split("").map((char, i) => {
+        if (char === " ") {
+          return <span key={`space-${i}`} className="inline-block">&nbsp;</span>;
+        }
+        // Pseudo-random scattered delays across character index
+        const delay = ((i * 7 + 3) % safeText.length) * 0.04;
+        return (
           <motion.span
-            key={i}
-            style={{ color: LETTER_COLORS[i % LETTER_COLORS.length], display: "inline-block" }}
-            initial={{ y: -60, opacity: 0, rotateX: -90 }}
-            animate={{ y: 0, opacity: 1, rotateX: 0 }}
-            transition={{ delay: i * 0.045, type: "spring", stiffness: 200, damping: 18 }}
-            whileHover={{ scale: 1.15, y: -4, transition: { duration: 0.15 } }}
+            key={`char-${i}-${char}`}
+            style={{
+              color: LETTER_COLORS[i % LETTER_COLORS.length],
+              display: "inline-block",
+              willChange: "transform, opacity, filter",
+              transformStyle: "preserve-3d",
+              backfaceVisibility: "hidden",
+              WebkitFontSmoothing: "antialiased",
+            }}
+            initial={{ y: 40, opacity: 0, scale: 0.8 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            transition={{ 
+              delay, 
+              type: "spring", 
+              stiffness: 70, 
+              damping: 12, 
+              mass: 0.8 
+            }}
+            whileHover={{ scale: 1.15, y: -6, transition: { type: "spring", stiffness: 300 } }}
           >
             {char}
           </motion.span>
-        )
-      )}
-    </>
+        );
+      })}
+    </span>
   );
 }
 
@@ -625,13 +646,13 @@ function Index() {
 
   // ─── Render ───
   return (
-    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "DM Sans, sans-serif" }}>
+    <div className="min-h-screen text-foreground" style={{ fontFamily: "DM Sans, sans-serif", background: currentSlide.bg, transition: "background 0.8s ease" }}>
       <ClickParticles particles={particles} />
 
-      {/* ── Top Marquee Ticker ── */}
+      {/* ── Top Marquee Ticker (Matches Hero Color, No Border Line) ── */}
       <div
-        className="overflow-hidden py-2 text-xs font-bold"
-        style={{ background: currentSlide.accent, color: "#3B1A08" }}
+        className="overflow-hidden py-2.5 text-xs font-extrabold transition-all duration-700"
+        style={{ background: currentSlide.bg, color: currentSlide.accent }}
       >
         <div className="marquee-track">
           {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
@@ -642,112 +663,125 @@ function Index() {
         </div>
       </div>
 
-      {/* ── Sticky Navbar ── */}
-      <header
-        className="sticky top-0 z-40 border-b"
-        style={{ background: "rgba(253, 243, 227, 0.92)", backdropFilter: "blur(12px)", borderColor: "rgba(59,26,8,0.12)" }}
-      >
-        <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
-          {/* Logo */}
-          <a href="#top" className="flex items-center gap-2.5">
-            <span className="text-2xl">🍔</span>
-            <span
-              style={{ fontFamily: "Anton, sans-serif", fontSize: "1.5rem", color: "#3B1A08", letterSpacing: "-0.01em", textTransform: "uppercase" }}
-            >
-              Hot<span style={{ color: currentSlide.accent }}>Bite</span>
-            </span>
-          </a>
+      {/* ── Floating Pill Ultra-Glassmorphic Navbar ── */}
+      <header className="sticky top-4 z-50 mx-auto max-w-5xl px-4 transition-all duration-300">
+        <GlassSurface
+          borderRadius={50}
+          width="100%"
+          height="auto"
+          displace={15}
+          distortionScale={-180}
+          redOffset={12}
+          greenOffset={24}
+          blueOffset={36}
+          backgroundOpacity={0.28}
+          blur={10}
+          saturation={2.4}
+          brightness={70}
+          className="shadow-2xl border-2 border-white/70 backdrop-blur-3xl"
+        >
+          <nav className="flex w-full items-center justify-between px-6 py-2">
+            {/* Logo */}
+            <a href="#top" className="flex items-center gap-2.5">
+              <span className="text-2xl">🍔</span>
+              <span
+                style={{ fontFamily: "Anton, sans-serif", fontSize: "1.5rem", color: "#3B1A08", letterSpacing: "-0.01em", textTransform: "uppercase" }}
+              >
+                Hot<span style={{ color: currentSlide.accent }}>Bite</span>
+              </span>
+            </a>
 
-          {/* Center nav */}
-          <div className="hidden items-center gap-7 text-sm font-semibold md:flex" style={{ color: "#3B1A08" }}>
-            <a href="#about" className="opacity-70 transition hover:opacity-100">About</a>
-            <a href="#menu" className="opacity-70 transition hover:opacity-100">Menu</a>
-            <a href="#specials" className="opacity-70 transition hover:opacity-100">Specials</a>
-            <a href="#delivery" className="opacity-70 transition hover:opacity-100">Delivery</a>
-          </div>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-2.5">
-            {/* API status */}
-            <div
-              className="hidden items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold sm:flex"
-              style={{ borderColor: "rgba(59,26,8,0.15)", background: "rgba(59,26,8,0.05)", color: "#3B1A08" }}
-            >
-              <Activity className={`h-3 w-3 ${apiConnected ? "text-green-500 animate-pulse" : "text-amber-500"}`} />
-              <span>{apiConnected ? "Live" : "Connecting..."}</span>
+            {/* Center nav */}
+            <div className="hidden items-center gap-7 text-sm font-bold md:flex" style={{ color: "#3B1A08" }}>
+              <a href="#about" className="opacity-80 transition hover:opacity-100 hover:scale-105">About</a>
+              <a href="#menu" className="opacity-80 transition hover:opacity-100 hover:scale-105">Menu</a>
+              <a href="#specials" className="opacity-80 transition hover:opacity-100 hover:scale-105">Specials</a>
+              <a href="#delivery" className="opacity-80 transition hover:opacity-100 hover:scale-105">Delivery</a>
             </div>
 
-            {/* Admin dashboard */}
-            {currentUser?.role === "admin" && (
-              <button
-                id="admin-dashboard-btn"
-                onClick={() => { setIsAdminOpen(true); loadAdminData(); }}
-                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold transition-all"
-                style={{ background: "#3B1A08", color: currentSlide.accent }}
+            {/* Right actions */}
+            <div className="flex items-center gap-2.5">
+              {/* API status */}
+              <div
+                className="hidden items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold sm:flex"
+                style={{ borderColor: "rgba(59,26,8,0.15)", background: "rgba(59,26,8,0.05)", color: "#3B1A08" }}
               >
-                <LayoutDashboard className="h-4 w-4" />
-                <span className="hidden sm:inline">Admin</span>
-              </button>
-            )}
+                <Activity className={`h-3 w-3 ${apiConnected ? "text-green-500 animate-pulse" : "text-amber-500"}`} />
+                <span>{apiConnected ? "Live" : "Connecting..."}</span>
+              </div>
 
-            {/* My Orders */}
-            {currentUser && (
-              <button
-                id="my-orders-btn"
-                onClick={() => { loadOrders(); setIsOrdersOpen(true); }}
-                className="flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold transition-all hover:opacity-80"
-                style={{ borderColor: "rgba(59,26,8,0.2)", color: "#3B1A08" }}
-              >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Orders</span>
-              </button>
-            )}
-
-            {/* Cart */}
-            <button
-              id="cart-btn"
-              onClick={() => { if (!currentUser) { setIsAuthOpen(true); return; } setIsCartOpen(true); }}
-              className="relative flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase transition-transform hover:scale-105"
-              style={{ background: currentSlide.accent, color: "#3B1A08" }}
-            >
-              <ShoppingBag className="h-4 w-4" />
-              <span>Cart</span>
-              {totalCartCount > 0 && (
-                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black"
-                  style={{ background: "#3B1A08", color: currentSlide.accent }}>
-                  {totalCartCount}
-                </span>
-              )}
-            </button>
-
-            {/* Auth */}
-            {currentUser ? (
-              <div className="flex items-center gap-2">
-                <span className="hidden text-xs font-bold md:inline" style={{ color: "#3B1A08" }}>
-                  {currentUser.name.split(" ")[0]}
-                </span>
+              {/* Admin dashboard */}
+              {currentUser?.role === "admin" && (
                 <button
-                  onClick={handleLogout}
-                  title="Logout"
-                  className="rounded-full border p-2 transition-colors hover:opacity-70"
+                  id="admin-dashboard-btn"
+                  onClick={() => { setIsAdminOpen(true); loadAdminData(); }}
+                  className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold transition-all hover:scale-105"
+                  style={{ background: "#3B1A08", color: currentSlide.accent }}
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  <span className="hidden sm:inline">Admin</span>
+                </button>
+              )}
+
+              {/* My Orders */}
+              {currentUser && (
+                <button
+                  id="my-orders-btn"
+                  onClick={() => { loadOrders(); setIsOrdersOpen(true); }}
+                  className="flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold transition-all hover:opacity-80 hover:scale-105"
                   style={{ borderColor: "rgba(59,26,8,0.2)", color: "#3B1A08" }}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Orders</span>
                 </button>
-              </div>
-            ) : (
+              )}
+
+              {/* Cart */}
               <button
-                id="login-btn"
-                onClick={() => setIsAuthOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold uppercase transition-all hover:opacity-80"
-                style={{ borderColor: "rgba(59,26,8,0.25)", color: "#3B1A08" }}
+                id="cart-btn"
+                onClick={() => { if (!currentUser) { setIsAuthOpen(true); return; } setIsCartOpen(true); }}
+                className="relative flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase transition-transform hover:scale-105 shadow-md"
+                style={{ background: currentSlide.accent, color: "#3B1A08" }}
               >
-                <User className="h-4 w-4" />
-                <span>Login</span>
+                <ShoppingBag className="h-4 w-4" />
+                <span>Cart</span>
+                {totalCartCount > 0 && (
+                  <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black"
+                    style={{ background: "#3B1A08", color: currentSlide.accent }}>
+                    {totalCartCount}
+                  </span>
+                )}
               </button>
-            )}
-          </div>
-        </nav>
+
+              {/* Auth */}
+              {currentUser ? (
+                <div className="flex items-center gap-2">
+                  <span className="hidden text-xs font-bold md:inline" style={{ color: "#3B1A08" }}>
+                    {currentUser.name.split(" ")[0]}
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    title="Logout"
+                    className="rounded-full border p-2 transition-colors hover:opacity-70"
+                    style={{ borderColor: "rgba(59,26,8,0.2)", color: "#3B1A08" }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="login-btn"
+                  onClick={() => setIsAuthOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold uppercase transition-all hover:opacity-80 hover:scale-105"
+                  style={{ borderColor: "rgba(59,26,8,0.25)", color: "#3B1A08" }}
+                >
+                  <User className="h-4 w-4" />
+                  <span>Login</span>
+                </button>
+              )}
+            </div>
+          </nav>
+        </GlassSurface>
       </header>
 
       {/* ── Hero Section ── */}
@@ -760,19 +794,30 @@ function Index() {
         }}
       >
         {/* Giant background text */}
-        <div
-          className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center select-none"
-          style={{
-            fontFamily: "Anton, sans-serif",
-            fontSize: "clamp(5rem, 20vw, 18rem)",
-            lineHeight: 0.88,
-            textTransform: "uppercase",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          <div><ColoredText text={currentSlide.headline} /></div>
-          <div><ColoredText text={currentSlide.subline} /></div>
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={heroSlide}
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center select-none"
+            style={{
+              fontFamily: "Anton, sans-serif",
+              fontSize: "clamp(5rem, 20vw, 18rem)",
+              lineHeight: 0.88,
+              textTransform: "uppercase",
+              letterSpacing: "-0.02em",
+              WebkitFontSmoothing: "antialiased",
+              MozOsxFontSmoothing: "grayscale",
+              textRendering: "optimizeLegibility",
+              willChange: "transform, opacity",
+            }}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.04 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="flex justify-center"><ColoredText text={currentSlide.headline} /></div>
+            <div className="flex justify-center"><ColoredText text={currentSlide.subline} /></div>
+          </motion.div>
+        </AnimatePresence>
 
         {/* Real Food Image (Framer Motion) */}
         <AnimatePresence mode="wait">
@@ -785,6 +830,7 @@ function Index() {
               width: "clamp(250px, 45vw, 600px)",
               height: "clamp(250px, 45vw, 600px)",
               filter: "drop-shadow(0 32px 48px rgba(0,0,0,0.6))",
+              willChange: "transform, opacity",
             }}
             initial={{ opacity: 0, scale: 0.8, x: "-50%", y: 50, rotate: -20 }}
             animate={{ opacity: 1, scale: 1, x: "-50%", y: 0, rotate: 0 }}
@@ -800,47 +846,33 @@ function Index() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Tag bubbles */}
+        {/* Floating Tag Badges around Food Item */}
         {currentSlide.tags.map((tag, i) => (
-          <div
+          <motion.div
             key={tag}
-            className="absolute rounded-full px-4 py-1.5 text-sm font-bold"
+            className="absolute z-20 hidden sm:block pointer-events-auto"
             style={{
-              background: currentSlide.accent + "22",
-              border: `2px solid ${currentSlide.accent}`,
-              color: currentSlide.accent,
-              top: `${28 + i * 8}%`,
-              left: i === 0 ? "18%" : i === 1 ? "14%" : "22%",
-              fontFamily: "DM Sans, sans-serif",
-              backdropFilter: "blur(8px)",
+              top: i === 0 ? "24%" : i === 1 ? "28%" : "65%",
+              left: i === 0 ? "12%" : i === 2 ? "16%" : "auto",
+              right: i === 1 ? "12%" : "auto",
+              willChange: "transform",
             }}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: [0, -8, 0] }}
+            transition={{
+              y: { repeat: Infinity, duration: 3.5 + i * 0.8, ease: "easeInOut" },
+              opacity: { duration: 0.4 },
+              scale: { duration: 0.4 }
+            }}
+            whileHover={{ scale: 1.1, rotate: 2 }}
           >
-            {tag}
-          </div>
+            <div className="rounded-full border-2 border-white/30 bg-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl px-6 py-2.5 backdrop-saturate-150">
+              <span className="text-sm font-black uppercase tracking-wider text-white drop-shadow-md">
+                {tag}
+              </span>
+            </div>
+          </motion.div>
         ))}
-
-        {/* Main copy */}
-        <div className="relative z-10 mt-[52vh] text-center">
-          <p className="text-sm font-semibold" style={{ color: currentSlide.accent + "aa" }}>
-            Crispy, juicy campus food made the right way.
-          </p>
-          <div className="mt-5 flex items-center justify-center gap-4">
-            <a
-              href="#menu"
-              className="rounded-full px-7 py-3 text-sm font-bold uppercase transition-transform hover:scale-105"
-              style={{ background: currentSlide.accent, color: "#3B1A08" }}
-            >
-              View Menu
-            </a>
-            <a
-              href="#about"
-              className="rounded-full border px-7 py-3 text-sm font-bold uppercase transition-colors hover:opacity-80"
-              style={{ borderColor: currentSlide.accent + "88", color: currentSlide.accent }}
-            >
-              Our Story
-            </a>
-          </div>
-        </div>
 
         {/* Slide controls */}
         <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center gap-3">
@@ -1049,128 +1081,167 @@ function Index() {
         </div>
       </section>
 
-      {/* ── Menu Section ── */}
-      <section id="menu" className="py-16" style={{ background: "#FDF3E3" }}>
-        <div className="mx-auto max-w-7xl px-5">
-          <div className="fade-up mb-8">
-            <h2
-              style={{
-                fontFamily: "Anton, sans-serif",
-                fontSize: "clamp(3rem, 8vw, 6rem)",
-                color: "#3B1A08",
-                textTransform: "uppercase",
-                lineHeight: 0.9,
-              }}
-            >
-              Menu
-            </h2>
-            <div className="mt-1 flex items-center gap-3 text-sm" style={{ color: "#5A3820" }}>
-              <span>⭐ 4.9 Rating</span>
-              <span>•</span>
-              <span>❤️ Loved Locally</span>
+      {/* ── Menu Section (Physical Canteen Board Style) ── */}
+      <section id="menu" className="py-20 relative overflow-hidden" style={{ background: "#F4EBD9" }}>
+        <div className="mx-auto max-w-7xl px-5 relative z-10">
+          
+          {/* Physical Clipboard Container */}
+          <div
+            className="rounded-3xl p-6 sm:p-10 shadow-2xl relative border-4"
+            style={{
+              background: "#FFFBF2",
+              borderColor: "#3B1A08",
+              boxShadow: "0 25px 60px -15px rgba(59,26,8,0.3)",
+            }}
+          >
+            {/* Clipboard Metal Ring Pin */}
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 flex items-center justify-center">
+              <div className="w-28 h-8 rounded-t-xl bg-gradient-to-r from-amber-950 via-amber-900 to-amber-950 border-2 border-amber-950 flex items-center justify-center shadow-lg">
+                <div className="w-12 h-3 rounded-full bg-amber-200/40 border border-amber-400" />
+              </div>
             </div>
-          </div>
 
-          {/* Category Pills */}
-          <div className="mb-8 flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                id={`cat-${cat.toLowerCase().replace(/\s+/g, "-")}`}
-                onClick={() => handleCategoryChange(cat)}
-                className={`cat-pill rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-all ${selectedCategory === cat ? "active" : ""}`}
-                style={
-                  selectedCategory === cat
-                    ? { background: "#F5A623", color: "#3B1A08", boxShadow: "0 4px 14px rgba(245,166,35,0.35)" }
-                    : { border: "2px solid rgba(59,26,8,0.15)", color: "#3B1A08", background: "white" }
-                }
+            {/* Menu Header Badge */}
+            <div className="text-center mb-10 pt-4">
+              <span className="inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm"
+                style={{ background: "#3B1A08", color: "#F5A623" }}>
+                📋 Physical Canteen Menu
+              </span>
+              <h2
+                className="mt-2"
+                style={{
+                  fontFamily: "Anton, sans-serif",
+                  fontSize: "clamp(3rem, 8vw, 5.5rem)",
+                  color: "#3B1A08",
+                  textTransform: "uppercase",
+                  lineHeight: 0.9,
+                  letterSpacing: "-0.01em"
+                }}
               >
-                {cat}
-              </button>
-            ))}
-          </div>
+                Today's Specials
+              </h2>
+              <div className="mt-3 flex items-center justify-center gap-3 text-xs md:text-sm font-bold" style={{ color: "#5A3820" }}>
+                <span>⭐ 4.9 Rating</span>
+                <span>•</span>
+                <span>🔥 Freshly Prepared</span>
+                <span>•</span>
+                <span>⚡ Fast Campus Pickup</span>
+              </div>
+            </div>
 
-          {/* Product Grid */}
-          {loadingProducts ? (
-            <div className="flex flex-col items-center justify-center py-24">
-              <div className="h-10 w-10 animate-spin rounded-full border-4" style={{ borderColor: "#F5A623", borderTopColor: "transparent" }} />
-              <p className="mt-4 text-sm font-semibold" style={{ color: "#5A3820" }}>Fetching menu from backend…</p>
-            </div>
-          ) : products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-20"
-              style={{ borderColor: "rgba(59,26,8,0.12)" }}>
-              <p className="text-2xl">🍽️</p>
-              <p className="mt-2 text-base font-semibold" style={{ color: "#3B1A08" }}>No items found</p>
-              <p className="mt-1 text-sm" style={{ color: "#5A3820" }}>Try a different category or clear your search</p>
-            </div>
-          ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {products.map((product) => (
-                <div
-                  key={product._id}
-                  className="food-card overflow-hidden rounded-2xl bg-white shadow-sm fade-up"
-                  style={{ border: "2px solid rgba(59,26,8,0.07)" }}
+            {/* Category Tabs */}
+            <div className="mb-10 flex gap-3 overflow-x-auto pb-3 justify-start md:justify-center scrollbar-none">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  id={`cat-${cat.toLowerCase().replace(/\s+/g, "-")}`}
+                  onClick={() => handleCategoryChange(cat)}
+                  className={`rounded-full px-6 py-2.5 text-xs font-extrabold uppercase tracking-wider whitespace-nowrap transition-all duration-300 transform hover:scale-105 ${selectedCategory === cat ? "shadow-lg scale-105" : ""}`}
+                  style={
+                    selectedCategory === cat
+                      ? { background: "#3B1A08", color: "#F5A623", border: "2px solid #3B1A08" }
+                      : { border: "2px solid rgba(59,26,8,0.18)", color: "#3B1A08", background: "rgba(255,255,255,0.9)" }
+                  }
                 >
-                  <div className="relative h-44 w-full overflow-hidden" style={{ background: "linear-gradient(135deg, #FFF3E0, #FFE0B2)" }}>
-                    {product.image ? (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-6xl">🍽️</div>
-                    )}
-                    <span
-                      className="absolute top-3 left-3 rounded-full px-3 py-1 text-[11px] font-bold uppercase"
-                      style={{ background: "rgba(253,243,227,0.9)", color: "#3B1A08", backdropFilter: "blur(6px)" }}
-                    >
-                      {product.category}
-                    </span>
-                    {(!product.available || product.stock <= 0) && (
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)" }}>
-                        <span className="rounded-lg px-4 py-1.5 text-xs font-black uppercase text-white" style={{ background: "#C0392B" }}>
-                          Sold Out
-                        </span>
-                      </div>
-                    )}
-                    {product.stock <= 3 && product.stock > 0 && product.available && (
-                      <span className="absolute top-3 right-3 rounded-full px-2 py-0.5 text-[10px] font-bold"
-                        style={{ background: "#E74C3C22", color: "#C0392B", border: "1px solid #C0392B44" }}>
-                        Only {product.stock} left!
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-bold leading-tight" style={{ color: "#3B1A08" }}>{product.name}</h3>
-                      <span className="shrink-0 text-base font-black" style={{ color: "#F5A623", fontFamily: "Anton, sans-serif" }}>
-                        ₹{product.price}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs leading-relaxed line-clamp-2" style={{ color: "#5A3820" }}>
-                      {product.description}
-                    </p>
-                    <div className="mt-3 flex items-center justify-between border-t pt-3" style={{ borderColor: "rgba(59,26,8,0.08)" }}>
-                      <span className="text-[11px]" style={{ color: "#5A3820" }}>
-                        Stock: <strong style={{ color: "#3B1A08" }}>{product.stock}</strong>
-                      </span>
-                      <button
-                        id={`add-to-cart-${product._id}`}
-                        onClick={() => handleAddToCart(product)}
-                        disabled={!product.available || product.stock <= 0}
-                        className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold uppercase transition-all hover:scale-105 disabled:opacity-40"
-                        style={{ background: "#F5A623", color: "#3B1A08" }}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  {cat}
+                </button>
               ))}
             </div>
-          )}
+
+            {/* Animated Product Grid */}
+            {loadingProducts ? (
+              <div className="flex flex-col items-center justify-center py-24">
+                <div className="h-10 w-10 animate-spin rounded-full border-4" style={{ borderColor: "#F5A623", borderTopColor: "transparent" }} />
+                <p className="mt-4 text-sm font-semibold" style={{ color: "#5A3820" }}>Fetching menu from backend…</p>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-20"
+                style={{ borderColor: "rgba(59,26,8,0.12)" }}>
+                <p className="text-3xl">🍽️</p>
+                <p className="mt-2 text-base font-bold" style={{ color: "#3B1A08" }}>No items found</p>
+                <p className="mt-1 text-sm" style={{ color: "#5A3820" }}>Try a different category or clear your search</p>
+              </div>
+            ) : (
+              <motion.div layout className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <AnimatePresence>
+                  {products.map((product) => (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      whileHover={{ y: -8, rotate: 0.5 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 18 }}
+                      key={product._id}
+                      className="group overflow-hidden rounded-2xl bg-white shadow-md transition-shadow hover:shadow-2xl flex flex-col justify-between"
+                      style={{ border: "2px solid rgba(59,26,8,0.12)" }}
+                    >
+                      <div>
+                        <div className="relative h-48 w-full overflow-hidden" style={{ background: "linear-gradient(135deg, #FFF3E0, #FFE0B2)" }}>
+                          {product.image ? (
+                            <img
+                              src={product.image}
+                              alt={product.name}
+                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-6xl">🍽️</div>
+                          )}
+                          <span
+                            className="absolute top-3 left-3 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider shadow"
+                            style={{ background: "rgba(253,243,227,0.95)", color: "#3B1A08", backdropFilter: "blur(6px)" }}
+                          >
+                            {product.category}
+                          </span>
+                          {(!product.available || product.stock <= 0) && (
+                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)" }}>
+                              <span className="rounded-xl px-4 py-2 text-xs font-black uppercase text-white shadow-lg" style={{ background: "#C0392B" }}>
+                                Sold Out
+                              </span>
+                            </div>
+                          )}
+                          {product.stock <= 3 && product.stock > 0 && product.available && (
+                            <span className="absolute top-3 right-3 rounded-full px-2.5 py-1 text-[10px] font-extrabold shadow"
+                              style={{ background: "#E74C3C", color: "#FFFFFF" }}>
+                              Only {product.stock} left!
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-base font-extrabold leading-tight" style={{ color: "#3B1A08" }}>{product.name}</h3>
+                            <span className="shrink-0 text-lg font-black" style={{ color: "#D97706", fontFamily: "Anton, sans-serif" }}>
+                              ₹{product.price}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs leading-relaxed line-clamp-2" style={{ color: "#5A3820" }}>
+                            {product.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-4 pt-0">
+                        <div className="flex items-center justify-between border-t pt-3" style={{ borderColor: "rgba(59,26,8,0.08)" }}>
+                          <span className="text-[11px] font-bold" style={{ color: "#5A3820" }}>
+                            Stock: <strong style={{ color: "#3B1A08" }}>{product.stock}</strong>
+                          </span>
+                          <button
+                            id={`add-to-cart-${product._id}`}
+                            onClick={() => handleAddToCart(product)}
+                            disabled={!product.available || product.stock <= 0}
+                            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-extrabold uppercase transition-all transform hover:scale-105 active:scale-95 disabled:opacity-40 shadow-sm"
+                            style={{ background: "#3B1A08", color: "#F5A623" }}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -1311,25 +1382,31 @@ function Index() {
             {TESTIMONIALS.map((t) => (
               <div
                 key={t.name}
-                className="rounded-2xl p-5 fade-up"
-                style={{ background: "white", border: "1px solid rgba(59,26,8,0.08)" }}
+                className="flex flex-col rounded-3xl p-6 transition-transform hover:-translate-y-1"
+                style={{
+                  background: "rgba(255, 255, 255, 0.5)",
+                  backdropFilter: "blur(16px)",
+                  WebkitBackdropFilter: "blur(16px)",
+                  border: "1px solid rgba(255, 255, 255, 0.6)",
+                  boxShadow: "0 8px 32px rgba(59, 26, 8, 0.05)"
+                }}
               >
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-4 w-full">
                   <div
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-black"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-black shrink-0"
                     style={{ background: "#3B1A08", color: "#F5A623" }}
                   >
                     {t.avatar}
                   </div>
                   <div>
-                    <p className="text-xs font-bold" style={{ color: "#3B1A08" }}>{t.name}</p>
-                    <p className="text-[10px]" style={{ color: "#5A3820" }}>{t.handle}</p>
+                    <p className="text-sm font-bold" style={{ color: "#3B1A08" }}>{t.name}</p>
+                    <p className="text-[11px] font-medium" style={{ color: "#8B6B58" }}>{t.handle}</p>
                   </div>
                 </div>
-                <p className="text-xs leading-relaxed" style={{ color: "#5A3820" }}>"{t.text}"</p>
-                <div className="mt-3 flex gap-0.5">
+                <p className="text-sm leading-relaxed w-full flex-1" style={{ color: "#5A3820", fontWeight: 500 }}>"{t.text}"</p>
+                <div className="mt-4 flex gap-1 w-full">
                   {Array.from({ length: t.stars }).map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-current" style={{ color: "#F5A623" }} />
+                    <Star key={i} className="h-4 w-4 fill-current" style={{ color: "#F5A623" }} />
                   ))}
                 </div>
               </div>
@@ -1361,28 +1438,46 @@ function Index() {
             <div className="flex flex-wrap gap-4">
               <button
                 onClick={() => { if (!currentUser) { setIsAuthOpen(true); } else { document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" }); } }}
-                className="rounded-full px-7 py-3 text-sm font-bold uppercase transition-transform hover:scale-105"
+                className="rounded-full px-7 py-3 text-sm font-bold uppercase transition-transform hover:scale-105 shadow-lg"
                 style={{ background: "#F5A623", color: "#3B1A08" }}
               >
                 Order Now 🔥
               </button>
               <button
                 onClick={() => { loadOrders(); setIsOrdersOpen(true); }}
-                className="rounded-full border px-7 py-3 text-sm font-bold uppercase transition-all hover:opacity-80"
-                style={{ borderColor: "#3B1A08", color: "#3B1A08" }}
+                className="rounded-full border border-amber-900/30 px-7 py-3 text-sm font-bold uppercase transition-all hover:scale-105 backdrop-blur-md"
+                style={{ color: "#3B1A08", background: "rgba(255,255,255,0.4)" }}
               >
                 Track Order
               </button>
             </div>
             <div className="mt-8 grid grid-cols-2 gap-4">
-              <div className="rounded-2xl p-4 text-center" style={{ background: "white", border: "1px solid rgba(59,26,8,0.08)" }}>
-                <p className="text-2xl font-black" style={{ fontFamily: "Anton, sans-serif", color: "#F5A623" }}>500+</p>
-                <p className="text-xs" style={{ color: "#5A3820" }}>Orders Served</p>
-              </div>
-              <div className="rounded-2xl p-4 text-center" style={{ background: "white", border: "1px solid rgba(59,26,8,0.08)" }}>
-                <p className="text-2xl font-black" style={{ fontFamily: "Anton, sans-serif", color: "#F5A623" }}>4.9⭐</p>
-                <p className="text-xs" style={{ color: "#5A3820" }}>Campus Rating</p>
-              </div>
+              <GlassSurface
+                borderRadius={20}
+                width="100%"
+                height="auto"
+                backgroundOpacity={0.2}
+                blur={16}
+                className="p-4 text-center border border-white/40 shadow-lg"
+              >
+                <div className="w-full text-center">
+                  <p className="text-3xl font-black" style={{ fontFamily: "Anton, sans-serif", color: "#D97706" }}>500+</p>
+                  <p className="text-xs font-bold" style={{ color: "#5A3820" }}>Orders Served</p>
+                </div>
+              </GlassSurface>
+              <GlassSurface
+                borderRadius={20}
+                width="100%"
+                height="auto"
+                backgroundOpacity={0.2}
+                blur={16}
+                className="p-4 text-center border border-white/40 shadow-lg"
+              >
+                <div className="w-full text-center">
+                  <p className="text-3xl font-black" style={{ fontFamily: "Anton, sans-serif", color: "#D97706" }}>4.9⭐</p>
+                  <p className="text-xs font-bold" style={{ color: "#5A3820" }}>Campus Rating</p>
+                </div>
+              </GlassSurface>
             </div>
           </div>
         </div>
@@ -1491,6 +1586,27 @@ function Index() {
           >
             HOTBITE
           </span>
+        </div>
+
+        {/* ── React Bits TextLoop Component ── */}
+        <div className="w-full py-6 overflow-hidden border-t border-amber-900/40" style={{ background: "#2A1205" }}>
+          <TextLoop
+            text="HotBite Canteen ✦ Fresh Food Daily ✦ Quick Pickup ✦ Campus Special ✦ Order Online"
+            shape="wave"
+            speed={90}
+            direction="forward"
+            separator="✦"
+            curviness={70}
+            fontSize={40}
+            fontWeight={800}
+            letterSpacing={2}
+            uppercase
+            color="#FDF3E3"
+            ribbon
+            ribbonColor="#F5A623"
+            ribbonWidth={76}
+            pauseOnHover
+          />
         </div>
       </footer>
 
@@ -1895,10 +2011,10 @@ function Index() {
                       {/* Stats cards */}
                       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                         {[
-                          { label: "Total Orders", value: analytics.totalOrders, icon: "📦", color: "#F5A623" },
-                          { label: "Total Revenue", value: `₹${analytics.totalRevenue.toLocaleString()}`, icon: "💰", color: "#4CAF50" },
-                          { label: "Orders Today", value: analytics.ordersToday, icon: "📅", color: "#2196F3" },
-                          { label: "Revenue Today", value: `₹${analytics.revenueToday.toLocaleString()}`, icon: "⚡", color: "#9C27B0" },
+                          { label: "Total Orders", value: analytics.totalOrders || 0, icon: "📦", color: "#F5A623" },
+                          { label: "Total Revenue", value: `₹${(analytics.totalRevenue || 0).toLocaleString()}`, icon: "💰", color: "#4CAF50" },
+                          { label: "Orders Today", value: analytics.ordersToday || (analytics as any).todayOrders || 0, icon: "📅", color: "#2196F3" },
+                          { label: "Revenue Today", value: `₹${(analytics.revenueToday || (analytics as any).todayRevenue || 0).toLocaleString()}`, icon: "⚡", color: "#9C27B0" },
                         ].map((stat) => (
                           <div key={stat.label}
                             className="rounded-2xl p-5 text-center"
@@ -1940,7 +2056,7 @@ function Index() {
                               </span>
                               <div className="flex-1">
                                 <p className="text-sm font-bold" style={{ color: "#3B1A08" }}>{p.name}</p>
-                                <p className="text-xs" style={{ color: "#5A3820" }}>{p.totalSold} sold • ₹{p.revenue} revenue</p>
+                                <p className="text-xs" style={{ color: "#5A3820" }}>{p.totalSold || (p as any).sold || 0} sold • ₹{(p.revenue || 0).toLocaleString()} revenue</p>
                               </div>
                               <TrendingUp className="h-4 w-4" style={{ color: "#F5A623" }} />
                             </div>

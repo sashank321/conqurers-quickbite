@@ -3,9 +3,8 @@ const { body } = require('express-validator');
 const {
   createOrder,
   getMyOrders,
-  getMyOrderById,
+  getOrderById,
   getAllOrders,
-  getAdminOrderById,
   updateOrderStatus,
   getAnalytics
 } = require('../controllers/orderController');
@@ -33,7 +32,7 @@ router.post(
 );
 
 router.get('/', protect, studentOnly, getMyOrders);
-router.get('/:id', protect, studentOnly, getMyOrderById);
+router.get('/:id', protect, studentOnly, getOrderById);
 
 // --- Admin Order Routes ---
 // Note: Handled by orderRoutes mounted at /api or /api/orders / /api/admin/orders in app.js
@@ -43,7 +42,7 @@ const adminRouter = express.Router();
 adminRouter.use(protect, adminOnly);
 adminRouter.get('/analytics', getAnalytics);
 adminRouter.get('/orders', getAllOrders);
-adminRouter.get('/orders/:id', getAdminOrderById);
+adminRouter.get('/orders/:id', getOrderById);
 adminRouter.put(
   '/orders/:id/status',
   [

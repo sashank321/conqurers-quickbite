@@ -269,19 +269,25 @@ const getAnalytics = async (req, res, next) => {
       }
     });
 
-    const topProducts = Object.values(productSales)
+    const topProductsFormatted = Object.values(productSales)
       .sort((a, b) => b.sold - a.sold)
-      .slice(0, 5);
+      .slice(0, 5)
+      .map(p => ({
+        name: p.name,
+        totalSold: p.sold,
+        revenue: p.revenue
+      }));
 
     return res.status(200).json({
       success: true,
       data: {
         totalOrders,
         totalRevenue,
-        todayOrders: todayOrdersCount,
-        todayRevenue,
+        ordersToday: todayOrdersCount,
+        revenueToday: todayRevenue,
         ordersByStatus: statusCounts,
-        topProducts
+        topProducts: topProductsFormatted,
+        recentOrders: []
       }
     });
   } catch (error) {

@@ -1,9 +1,7 @@
-const mongoose = require('mongoose');
+const { PrismaClient } = require('@prisma/client');
+const { Pool } = require('pg');
+const { PrismaPg } = require('@prisma/adapter-pg');
 const dotenv = require('dotenv');
-const User = require('../src/models/User');
-const Product = require('../src/models/Product');
-const Cart = require('../src/models/Cart');
-const Order = require('../src/models/Order');
 
 dotenv.config();
 
@@ -249,40 +247,48 @@ const productsData = [
 ];
 
 const seedDB = async () => {
-  const mongoUri = process.env.MONGO_URI;
+  const dbUrl = process.env.DATABASE_URL;
 
-  if (!mongoUri) {
-    console.error('[Seed Error]: MONGO_URI environment variable is missing.');
+  if (!dbUrl) {
+    console.error('[Seed Error]: DATABASE_URL environment variable is missing.');
     process.exit(1);
   }
 
+  const pool = new Pool({ connectionString: dbUrl });
+  const adapter = new PrismaPg(pool);
+  const prisma = new PrismaClient({ adapter });
+
   try {
-    console.log('[Seed]: Connecting to MongoDB...');
-    await mongoose.connect(mongoUri);
-    console.log('[Seed]: MongoDB Connected Successfully.');
+    console.log('[Seed]: Connected to PostgreSQL via Prisma successfully.');
 
     console.log('[Seed]: Clearing existing Database Collections...');
-    await User.deleteMany({});
-    await Product.deleteMany({});
-    await Cart.deleteMany({});
-    await Order.deleteMany({});
+    await prisma.orderItem.deleteMany({});
+    await prisma.order.deleteMany({});
+    await prisma.cartItem.deleteMany({});
+    await prisma.cart.deleteMany({});
+    await prisma.product.deleteMany({});
+    await prisma.user.deleteMany({});
 
     console.log('[Seed]: Inserting Seed Users...');
     const createdUsers = [];
     for (const userData of usersData) {
-      const user = await User.create(userData);
+      const bcrypt = require('bcryptjs');
+      const salt = await bcrypt.genSalt(10);
+      userData.password = await bcrypt.hash(userData.password, salt);
+      const user = await prisma.user.create({ data: userData });
       createdUsers.push(user);
     }
     console.log(`[Seed]: Created ${createdUsers.length} users successfully.`);
 
     console.log('[Seed]: Inserting Seed Products...');
-    const createdProducts = await Product.insertMany(productsData);
+    await prisma.product.createMany({ data: productsData });
+    const createdProducts = await prisma.product.findMany();
     console.log(`[Seed]: Created ${createdProducts.length} food products across 7 categories.`);
 
     console.log('[Seed]: Creating initial carts for students...');
     const students = createdUsers.filter((u) => u.role === 'student');
     for (const student of students) {
-      await Cart.create({ user: student._id, items: [] });
+      await prisma.cart.create({ data: { userId: student.id } });
     }
 
     console.log('\n========================================');
@@ -295,7 +301,6 @@ const seedDB = async () => {
     console.log('  - student3@quickbite.com / Student@123');
     console.log('========================================\n');
 
-    await mongoose.connection.close();
     process.exit(0);
   } catch (error) {
     console.error(`[Seed Error]: ${error.message}`);
