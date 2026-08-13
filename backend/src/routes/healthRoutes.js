@@ -1,24 +1,28 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { prisma } = require('../config/db');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
-
-  if (!isDbConnected) {
-    return res.status(503).json({
+// @desc    Check API and DB health
+// @route   GET /api/health
+// @access  Public
+router.get('/', async (req, res) => {
+  try {
+    // A simple query to check if DB is connected
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      success: true,
+      message: 'QuickBite API is running',
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({
       success: false,
-      message: 'QuickBite API health degraded: Database unavailable',
-      database: 'disconnected'
+      message: 'QuickBite API is running',
+      database: 'disconnected',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-
-  return res.status(200).json({
-    success: true,
-    message: 'QuickBite API is running',
-    database: 'connected'
-  });
 });
 
 module.exports = router;

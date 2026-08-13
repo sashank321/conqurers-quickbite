@@ -1,5 +1,6 @@
-const User = require('../models/User');
+const { prisma } = require('../config/db');
 const generateToken = require('../utils/generateToken');
+const bcrypt = require('bcryptjs');
 
 // @desc    Register a new student/user
 // @route   POST /api/auth/register
@@ -8,7 +9,7 @@ const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    const userExists = await User.findOne({ email: email.toLowerCase() });
+    const userExists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (userExists) {
       return res.status(409).json({
         success: false,
@@ -16,22 +17,25 @@ const registerUser = async (req, res, next) => {
       });
     }
 
-    // Role defaults to 'student'
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
     const userRole = role === 'admin' ? 'admin' : 'student';
 
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role: userRole
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        role: userRole
+      }
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     return res.status(201).json({
       success: true,
       data: {
-        _id: user._id,
+        _id: user.id, // mapped for frontend compatibility
         name: user.name,
         email: user.email,
         role: user.role,
@@ -51,21 +55,29 @@ const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
-    if (!user || !(await user.matchPassword(password))) {
+    if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
 
-    const token = generateToken(user._id);
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    const token = generateToken(user.id);
 
     return res.status(200).json({
       success: true,
       data: {
-        _id: user._id,
+        _id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -83,9 +95,16 @@ const loginUser = async (req, res, next) => {
 // @access  Private
 const getMe = async (req, res, next) => {
   try {
+    // req.user is set by authMiddleware
     return res.status(200).json({
       success: true,
-      data: req.user
+      data: {
+        _id: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role,
+        createdAt: req.user.createdAt,
+      }
     });
   } catch (error) {
     next(error);

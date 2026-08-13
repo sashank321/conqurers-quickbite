@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { prisma } = require('../config/db');
 
 const protect = async (req, res, next) => {
   let token;
@@ -21,7 +21,20 @@ const protect = async (req, res, next) => {
 
       const decoded = jwt.verify(token, secret);
 
-      req.user = await User.findById(decoded.id).select('-password');
+      req.user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { id: true, name: true, email: true, role: true, createdAt: true, updatedAt: true }
+      });
+
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Not authorized, user not found'
+        });
+      }
+      
+      // Map id to _id for frontend compatibility
+      req.user._id = req.user.id;
 
       if (!req.user) {
         return res.status(401).json({

@@ -9,27 +9,17 @@ const errorHandler = (err, req, res, next) => {
   let message = err.message || 'Internal Server Error';
   let errors;
 
-  // Handle Mongoose invalid ObjectId error (CastError)
-  if (err.name === 'CastError' && err.kind === 'ObjectId') {
-    statusCode = 404;
-    message = 'Resource not found: Invalid ID format';
-  }
-
-  // Handle Mongoose duplicate key error (code 11000)
-  if (err.code === 11000) {
+  // Handle Prisma unique constraint error
+  if (err.code === 'P2002') {
     statusCode = 409;
-    const field = Object.keys(err.keyValue || {})[0];
-    message = field
-      ? `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`
-      : 'Duplicate field value entered';
+    const field = err.meta?.target?.[0] || 'Field';
+    message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`;
   }
 
-  // Handle Mongoose validation errors
-  if (err.name === 'ValidationError') {
-    statusCode = 400;
-    message = Object.values(err.errors)
-      .map((val) => val.message)
-      .join(', ');
+  // Handle Prisma record not found
+  if (err.code === 'P2025') {
+    statusCode = 404;
+    message = 'Resource not found';
   }
 
   // Handle JWT error

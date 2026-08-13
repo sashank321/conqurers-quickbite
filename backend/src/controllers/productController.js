@@ -1,4 +1,7 @@
-const Product = require('../models/Product');
+const { prisma } = require('../config/db');
+
+// Helper to map Prisma product to Mongoose-like product
+const mapProduct = (p) => ({ ...p, _id: p.id });
 
 // @desc    Get all products with filtering & search
 // @route   GET /api/products
@@ -6,26 +9,33 @@ const Product = require('../models/Product');
 const getProducts = async (req, res, next) => {
   try {
     const { search, category, available } = req.query;
-    const filter = {};
+    
+    let where = {};
 
     if (search) {
-      filter.$text = { $search: search };
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
     }
 
     if (category) {
-      filter.category = category;
+      where.category = category;
     }
 
     if (available !== undefined && available !== '') {
-      filter.available = available === 'true';
+      where.available = available === 'true';
     }
 
-    const products = await Product.find(filter).sort({ createdAt: -1 });
+    const products = await prisma.product.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
 
     return res.status(200).json({
       success: true,
       count: products.length,
-      data: products
+      data: products.map(mapProduct)
     });
   } catch (error) {
     next(error);
@@ -37,7 +47,10 @@ const getProducts = async (req, res, next) => {
 // @access  Public
 const getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id }
+    });
+
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -47,33 +60,35 @@ const getProductById = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: product
+      data: mapProduct(product)
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Create a new product
+// @desc    Create a product
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = async (req, res, next) => {
   try {
     const { name, description, price, category, image, available, stock } = req.body;
 
-    const product = await Product.create({
-      name,
-      description,
-      price: Number(price),
-      category,
-      image: image || undefined,
-      available: available !== undefined ? Boolean(available) : true,
-      stock: stock !== undefined ? Number(stock) : 0
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description,
+        price: Number(price),
+        category,
+        image,
+        available: available !== undefined ? Boolean(available) : true,
+        stock: stock !== undefined ? Number(stock) : 0
+      }
     });
 
     return res.status(201).json({
       success: true,
-      data: product
+      data: mapProduct(product)
     });
   } catch (error) {
     next(error);
@@ -85,27 +100,34 @@ const createProduct = async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    let product = await Product.findById(req.params.id);
-    if (!product) {
+    const { id } = req.params;
+    const { name, description, price, category, image, available, stock } = req.body;
+
+    const productExists = await prisma.product.findUnique({ where: { id } });
+
+    if (!productExists) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
 
-    const updates = { ...req.body };
-    if (updates.price !== undefined) updates.price = Number(updates.price);
-    if (updates.stock !== undefined) updates.stock = Number(updates.stock);
-    if (updates.available !== undefined) updates.available = Boolean(updates.available);
-
-    product = await Product.findByIdAndUpdate(req.params.id, updates, {
-      new: true,
-      runValidators: true
+    const updatedProduct = await prisma.product.update({
+      where: { id },
+      data: {
+        name: name || undefined,
+        description: description || undefined,
+        price: price !== undefined ? Number(price) : undefined,
+        category: category || undefined,
+        image: image || undefined,
+        available: available !== undefined ? Boolean(available) : undefined,
+        stock: stock !== undefined ? Number(stock) : undefined
+      }
     });
 
     return res.status(200).json({
       success: true,
-      data: product
+      data: mapProduct(updatedProduct)
     });
   } catch (error) {
     next(error);
@@ -117,7 +139,10 @@ const updateProduct = async (req, res, next) => {
 // @access  Private/Admin
 const deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const { id } = req.params;
+
+    const product = await prisma.product.findUnique({ where: { id } });
+
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -125,11 +150,11 @@ const deleteProduct = async (req, res, next) => {
       });
     }
 
-    await product.deleteOne();
+    await prisma.product.delete({ where: { id } });
 
     return res.status(200).json({
       success: true,
-      message: 'Product deleted successfully'
+      message: 'Product removed'
     });
   } catch (error) {
     next(error);

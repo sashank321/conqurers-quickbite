@@ -10,7 +10,8 @@ const {
 const { protect } = require('../middleware/authMiddleware');
 const { adminOnly } = require('../middleware/adminMiddleware');
 const validate = require('../middleware/validateMiddleware');
-const { CATEGORIES } = require('../models/Product');
+
+const CATEGORIES = ['Burgers', 'Pizza', 'Biryani', 'South Indian', 'Snacks', 'Beverages', 'Desserts'];
 
 const router = express.Router();
 

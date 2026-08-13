@@ -1,6 +1,4 @@
-const Order = require('../models/Order');
-const Cart = require('../models/Cart');
-const Product = require('../models/Product');
+const { prisma } = require('../config/db');
 const generateOrderNumber = require('../utils/generateOrderNumber');
 
 const VALID_TRANSITIONS = {
@@ -12,179 +10,127 @@ const VALID_TRANSITIONS = {
   CANCELLED: []
 };
 
+// Helper to format order response
+const formatOrderResponse = (order) => {
+  return {
+    ...order,
+    _id: order.id,
+    user: { ...order.user, _id: order.user?.id }
+  };
+};
+
 // @desc    Create a new order from current student's cart
 // @route   POST /api/orders
 // @access  Private (Student)
 const createOrder = async (req, res, next) => {
   try {
     const { paymentMethod } = req.body;
+    const userId = req.user.id;
 
     if (!paymentMethod || !['CASH', 'UPI', 'CARD'].includes(paymentMethod)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid payment method (CASH, UPI, CARD) is required'
-      });
+      return res.status(400).json({ success: false, message: 'Valid payment method (CASH, UPI, CARD) is required' });
     }
 
-    const cart = await Cart.findOne({ user: req.user._id }).populate('items.product');
-
-    if (!cart || !cart.items || cart.items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot place an order with an empty cart'
-      });
-    }
-
-    const orderItems = [];
-    let totalAmount = 0;
-    const stockDecrementsToRollback = [];
-
-    // Step 1: Validate all items & stock requirements first
-    for (const item of cart.items) {
-      const product = item.product;
-
-      if (!product) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more products in your cart no longer exist'
-        });
-      }
-
-      if (!product.available) {
-        return res.status(400).json({
-          success: false,
-          message: `Product "${product.name}" is no longer available`
-        });
-      }
-
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient stock for "${product.name}". Available: ${product.stock}, requested: ${item.quantity}`
-        });
-      }
-
-      const itemPrice = Number(product.price);
-      const itemSubtotal = itemPrice * item.quantity;
-      totalAmount += itemSubtotal;
-
-      orderItems.push({
-        product: product._id,
-        name: product.name,
-        price: itemPrice,
-        quantity: item.quantity,
-        subtotal: itemSubtotal
-      });
-    }
-
-    // Step 2: Perform atomic conditional stock decrements
-    for (const item of orderItems) {
-      const updatedProduct = await Product.findOneAndUpdate(
-        { _id: item.product, stock: { $gte: item.quantity } },
-        { $inc: { stock: -item.quantity } },
-        { new: true }
-      );
-
-      if (!updatedProduct) {
-        // Rollback stock for previously decremented items
-        for (const rollbackItem of stockDecrementsToRollback) {
-          await Product.findByIdAndUpdate(rollbackItem.product, {
-            $inc: { stock: rollbackItem.quantity }
-          });
-        }
-
-        return res.status(400).json({
-          success: false,
-          message: `Failed to secure stock for "${item.name}". Stock may have changed.`
-        });
-      }
-
-      stockDecrementsToRollback.push({
-        product: item.product,
-        quantity: item.quantity
-      });
-    }
-
-    // Step 3: Create Order document
-    let orderNumber;
-    let isUnique = false;
-    let attempts = 0;
-
-    while (!isUnique && attempts < 5) {
-      orderNumber = generateOrderNumber();
-      const existingOrder = await Order.findOne({ orderNumber });
-      if (!existingOrder) {
-        isUnique = true;
-      }
-      attempts++;
-    }
-
-    const order = await Order.create({
-      orderNumber,
-      user: req.user._id,
-      items: orderItems,
-      totalAmount,
-      status: 'PLACED',
-      paymentMethod
+    const cart = await prisma.cart.findUnique({
+      where: { userId },
+      include: { items: { include: { product: true } } }
     });
 
-    // Step 4: Clear student cart
-    cart.items = [];
-    await cart.save();
+    if (!cart || !cart.items || cart.items.length === 0) {
+      return res.status(400).json({ success: false, message: 'Cannot place an order with an empty cart' });
+    }
+
+    // Use Prisma Interactive Transaction for atomic order creation and stock decrements
+    const newOrder = await prisma.$transaction(async (tx) => {
+      const orderItems = [];
+      let totalAmount = 0;
+
+      for (const item of cart.items) {
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+
+        if (!product) throw new Error('One or more products in your cart no longer exist');
+        if (!product.available) throw new Error(`Product "${item.product.name}" is no longer available`);
+        if (product.stock < item.quantity) {
+          throw new Error(`Insufficient stock for "${product.name}". Available: ${product.stock}, requested: ${item.quantity}`);
+        }
+
+        const itemSubtotal = product.price * item.quantity;
+        totalAmount += itemSubtotal;
+
+        orderItems.push({
+          productId: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: item.quantity,
+          subtotal: itemSubtotal
+        });
+
+        // Decrement stock
+        await tx.product.update({
+          where: { id: product.id },
+          data: { stock: { decrement: item.quantity } }
+        });
+      }
+
+      let orderNumber;
+      let isUnique = false;
+      let attempts = 0;
+
+      while (!isUnique && attempts < 5) {
+        orderNumber = generateOrderNumber();
+        const existingOrder = await tx.order.findUnique({ where: { orderNumber } });
+        if (!existingOrder) {
+          isUnique = true;
+        }
+        attempts++;
+      }
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          userId,
+          status: 'PLACED',
+          paymentMethod,
+          totalAmount,
+          items: { create: orderItems }
+        },
+        include: { items: true, user: { select: { id: true, name: true, email: true } } }
+      });
+
+      // Clear cart
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+
+      return order;
+    });
 
     return res.status(201).json({
       success: true,
       message: 'Order created successfully',
-      data: order
+      data: formatOrderResponse(newOrder)
     });
   } catch (error) {
+    if (error.message.includes('Insufficient stock') || error.message.includes('no longer exist') || error.message.includes('no longer available')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
 
-// @desc    Get authenticated student's orders
-// @route   GET /api/orders
+// @desc    Get logged in student's orders
+// @route   GET /api/orders/myorders
 // @access  Private (Student)
 const getMyOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find({ user: req.user._id }).sort({
-      createdAt: -1
+    const orders = await prisma.order.findMany({
+      where: { userId: req.user.id },
+      include: { items: true, user: { select: { id: true, name: true, email: true } } },
+      orderBy: { createdAt: 'desc' }
     });
 
     return res.status(200).json({
       success: true,
       count: orders.length,
-      data: orders
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Get authenticated student's specific order
-// @route   GET /api/orders/:id
-// @access  Private (Student)
-const getMyOrderById = async (req, res, next) => {
-  try {
-    const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    if (order.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied: You cannot view another student\'s order'
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: order
+      data: orders.map(formatOrderResponse)
     });
   } catch (error) {
     next(error);
@@ -192,160 +138,150 @@ const getMyOrderById = async (req, res, next) => {
 };
 
 // @desc    Get all orders (Admin)
-// @route   GET /api/admin/orders
+// @route   GET /api/orders
 // @access  Private (Admin)
 const getAllOrders = async (req, res, next) => {
   try {
     const { status } = req.query;
-    const filter = {};
-
+    let where = {};
     if (status) {
-      filter.status = status;
+      where.status = status.toUpperCase();
     }
 
-    const orders = await Order.find(filter)
-      .populate('user', 'name email')
-      .sort({ createdAt: -1 });
+    const orders = await prisma.order.findMany({
+      where,
+      include: { items: true, user: { select: { id: true, name: true, email: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
 
     return res.status(200).json({
       success: true,
       count: orders.length,
-      data: orders
+      data: orders.map(formatOrderResponse)
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get single order details by ID (Admin)
-// @route   GET /api/admin/orders/:id
-// @access  Private (Admin)
-const getAdminOrderById = async (req, res, next) => {
-  try {
-    const order = await Order.findById(req.params.id).populate(
-      'user',
-      'name email'
-    );
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: order
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Update order status with state machine transition rules (Admin)
-// @route   PUT /api/admin/orders/:id/status
+// @desc    Update order status (Admin)
+// @route   PATCH /api/orders/:id/status
 // @access  Private (Admin)
 const updateOrderStatus = async (req, res, next) => {
   try {
+    const { id } = req.params;
     const { status } = req.body;
 
-    const order = await Order.findById(req.params.id);
+    const order = await prisma.order.findUnique({ where: { id }, include: { items: true, user: { select: { id: true, name: true, email: true } } } });
+
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
     const currentStatus = order.status;
+    const allowedTransitions = VALID_TRANSITIONS[currentStatus];
 
-    // Check if status is same
-    if (currentStatus === status) {
-      return res.status(200).json({
-        success: true,
-        message: `Order is already in status "${status}"`,
-        data: order
-      });
-    }
-
-    const allowedNextStatuses = VALID_TRANSITIONS[currentStatus] || [];
-
-    if (!allowedNextStatuses.includes(status)) {
+    if (!allowedTransitions || !allowedTransitions.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status transition from "${currentStatus}" to "${status}". Allowed transitions: [${allowedNextStatuses.join(', ')}]`
+        message: `Invalid status transition from ${currentStatus} to ${status}`
       });
     }
 
-    order.status = status;
-    await order.save();
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: { status },
+      include: { items: true, user: { select: { id: true, name: true, email: true } } }
+    });
 
     return res.status(200).json({
       success: true,
-      message: `Order status updated to "${status}"`,
-      data: order
+      data: formatOrderResponse(updatedOrder)
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get admin analytics dashboard data
+// @desc    Get order by ID
+// @route   GET /api/orders/:id
+// @access  Private
+const getOrderById = async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { items: true, user: { select: { id: true, name: true, email: true } } }
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (req.user.role !== 'admin' && order.userId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: formatOrderResponse(order)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get admin analytics dashboard
 // @route   GET /api/admin/analytics
 // @access  Private (Admin)
 const getAnalytics = async (req, res, next) => {
   try {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const [allOrders, todayOrders, recentOrders] = await Promise.all([
-      Order.find({}),
-      Order.find({ createdAt: { $gte: startOfToday } }),
-      Order.find({}).populate('user', 'name email').sort({ createdAt: -1 }).limit(10)
-    ]);
+    const orders = await prisma.order.findMany({ include: { items: true } });
 
-    const totalRevenue = allOrders
-      .filter(o => o.status !== 'CANCELLED')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((acc, order) => {
+      if (order.status !== 'CANCELLED') return acc + order.totalAmount;
+      return acc;
+    }, 0);
 
-    const revenueToday = todayOrders
-      .filter(o => o.status !== 'CANCELLED')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+    const todayOrdersCount = orders.filter(o => new Date(o.createdAt) >= today).length;
+    const todayRevenue = orders
+      .filter(o => new Date(o.createdAt) >= today && o.status !== 'CANCELLED')
+      .reduce((acc, o) => acc + o.totalAmount, 0);
 
-    const ordersByStatus = {};
-    allOrders.forEach(o => {
-      ordersByStatus[o.status] = (ordersByStatus[o.status] || 0) + 1;
+    const statusCounts = orders.reduce((acc, order) => {
+      acc[order.status] = (acc[order.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const productSales = {};
+    orders.forEach(order => {
+      if (order.status !== 'CANCELLED') {
+        order.items.forEach(item => {
+          if (!productSales[item.productId]) {
+            productSales[item.productId] = { name: item.name, sold: 0, revenue: 0 };
+          }
+          productSales[item.productId].sold += item.quantity;
+          productSales[item.productId].revenue += item.subtotal;
+        });
+      }
     });
 
-    // Top products by quantity sold
-    const productMap = {};
-    allOrders
-      .filter(o => o.status !== 'CANCELLED')
-      .forEach(order => {
-        order.items.forEach(item => {
-          if (!productMap[item.name]) {
-            productMap[item.name] = { name: item.name, totalSold: 0, revenue: 0 };
-          }
-          productMap[item.name].totalSold += item.quantity;
-          productMap[item.name].revenue += item.subtotal;
-        });
-      });
-
-    const topProducts = Object.values(productMap)
-      .sort((a, b) => b.totalSold - a.totalSold)
+    const topProducts = Object.values(productSales)
+      .sort((a, b) => b.sold - a.sold)
       .slice(0, 5);
 
     return res.status(200).json({
       success: true,
       data: {
-        totalOrders: allOrders.length,
+        totalOrders,
         totalRevenue,
-        ordersToday: todayOrders.length,
-        revenueToday,
-        ordersByStatus,
-        topProducts,
-        recentOrders
+        todayOrders: todayOrdersCount,
+        todayRevenue,
+        ordersByStatus: statusCounts,
+        topProducts
       }
     });
   } catch (error) {
@@ -356,9 +292,8 @@ const getAnalytics = async (req, res, next) => {
 module.exports = {
   createOrder,
   getMyOrders,
-  getMyOrderById,
+  getOrderById,
   getAllOrders,
-  getAdminOrderById,
   updateOrderStatus,
   getAnalytics
 };

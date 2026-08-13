@@ -12,7 +12,9 @@ const {
 const { protect } = require('../middleware/authMiddleware');
 const { adminOnly, studentOnly } = require('../middleware/adminMiddleware');
 const validate = require('../middleware/validateMiddleware');
-const { ORDER_STATUSES, PAYMENT_METHODS } = require('../models/Order');
+
+const ORDER_STATUSES = ['PLACED', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'];
+const PAYMENT_METHODS = ['CASH', 'UPI', 'CARD'];
 
 const router = express.Router();
 

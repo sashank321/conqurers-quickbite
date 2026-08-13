@@ -2,8 +2,8 @@ services:
   - type: web
     name: hotbite-backend
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    buildCommand: cd backend && npm install && npx prisma generate
+    startCommand: cd backend && npx prisma db push --accept-data-loss && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,5 +13,5 @@ services:
         value: https://hotbite-reborn.vercel.app # Update this with your frontend URL later
       - key: JWT_SECRET
         generateValue: true
-      - key: MONGO_URI
-        sync: false # You must set this manually in the Render dashboard (MongoDB Atlas URI)
+      - key: DATABASE_URL
+        sync: false # Set this in the Render dashboard to your Supabase PostgreSQL connection string!
