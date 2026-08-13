@@ -1,17 +1,29 @@
 services:
+  # ── Backend Node.js Service ──
   - type: web
-    name: hotbite-backend
+    name: quickbite-backend
     env: node
-    buildCommand: cd backend && npm install && npx prisma generate
-    startCommand: cd backend && npx prisma db push --accept-data-loss && npm start
+    region: singapore
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: PORT
         value: 5000
-      - key: CLIENT_URL
-        value: https://hotbite-reborn.vercel.app # Update this with your frontend URL later
-      - key: JWT_SECRET
-        generateValue: true
       - key: DATABASE_URL
-        sync: false # Set this in the Render dashboard to your Supabase PostgreSQL connection string!
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # ── Frontend Static Site ──
+  - type: web
+    name: quickbite-frontend
+    env: static
+    region: singapore
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/.output/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
